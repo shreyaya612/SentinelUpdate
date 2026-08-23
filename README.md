@@ -49,7 +49,7 @@ and you only find out after something breaks.
 ## Quick start
 
 ```bash
-git clone <your-repo-url>
+git clone https://github.com/shreyaya612/SentinelUpdate.git
 cd SentinelUpdate
 pip install -r requirements.txt
 
