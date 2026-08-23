@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SentinelUpdate — Pre-Update Risk Advisor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0F1215;
+    --panel: #171B1F;
+    --panel-raised: #1D2226;
+    --border: #282E33;
+    --text: #E4E1DA;
+    --text-muted: #9AA1A8;
+    --text-dim: #5B6167;
+    --accent: #E95420;
+    --low: #4ECB94;
+    --medium: #E8B84E;
+    --high: #E4544B;
+    --sans: 'Space Grotesk', sans-serif;
+    --mono: 'Space Mono', monospace;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg); color: var(--text); font-family: var(--sans);
+    min-height: 100vh;
+    background-image: linear-gradient(var(--border) 1px, transparent 1px),
+                       linear-gradient(90deg, var(--border) 1px, transparent 1px);
+    background-size: 48px 48px; background-attachment: fixed; opacity: 1;
+  }
+  .shell { max-width: 1100px; margin: 0 auto; padding: 24px 20px 60px; }
+
+  /* Status bar */
+  .status-bar {
+    display: flex; justify-content: space-between; align-items: center;
+    background: var(--panel); border: 1px solid var(--border); border-top: 2px solid var(--accent);
+    border-radius: 6px; padding: 14px 20px; margin-bottom: 18px; font-family: var(--mono);
+    flex-wrap: wrap; gap: 10px;
+  }
+  .status-left { display: flex; align-items: center; gap: 10px; }
+  .brand { font-size: 15px; font-weight: 700; letter-spacing: 0.04em; }
+  .brand .sq { color: var(--accent); }
+  .tagline { font-size: 11px; color: var(--text-dim); margin-left: 10px; padding-left: 10px; border-left: 1px solid var(--border); }
+  .status-right { display: flex; gap: 16px; font-size: 11px; color: var(--text-muted); flex-wrap: wrap; }
+  .status-right .k { color: var(--text-dim); }
+  .live-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--low); margin-right: 5px; animation: blink 2s ease-in-out infinite; }
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:.3} }
+
+  /* Controls */
+  .controls { display: flex; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; align-items: center; }
+  button {
+    font-family: var(--mono); font-size: 12.5px; border-radius: 4px; border: 1px solid var(--border);
+    background: var(--panel-raised); color: var(--text); padding: 10px 16px; cursor: pointer;
+    transition: border-color .15s, background .15s;
+  }
+  button:hover { border-color: var(--accent); color: var(--accent); }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #0F1215; font-weight: 700; }
+  button.primary:hover { background: #FF6B35; color: #0F1215; }
+  button:disabled { opacity: .4; cursor: not-allowed; }
+  input[type=text], select {
+    font-family: var(--mono); font-size: 12.5px; background: var(--panel); border: 1px solid var(--border);
+    color: var(--text); border-radius: 4px; padding: 9px 12px;
+  }
+  .toggle-row { display: flex; align-items: center; gap: 8px; font-family: var(--mono); font-size: 11.5px; color: var(--text-muted); }
+  .toggle-row input { accent-color: var(--accent); }
+  .spacer { flex: 1; }
+
+  /* Stat strip */
+  .stat-strip { display: flex; background: var(--panel); border: 1px solid var(--border); border-radius: 6px; margin-bottom: 16px; overflow: hidden; }
+  .stat-cell { flex: 1; padding: 12px 16px; border-right: 1px solid var(--border); }
+  .stat-cell:last-child { border-right: none; }
+  .stat-label { font-family: var(--mono); font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: var(--text-dim); margin-bottom: 4px; }
+  .stat-value { font-family: var(--mono); font-size: 22px; font-weight: 700; }
+  .stat-value.hi { color: var(--high); } .stat-value.med { color: var(--medium); } .stat-value.lo { color: var(--low); }
+
+  /* Tabs */
+  .tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); margin-bottom: 16px; }
+  .tab-btn {
+    font-family: var(--mono); font-size: 12px; background: none; border: none; border-bottom: 2px solid transparent;
+    color: var(--text-dim); padding: 8px 6px; cursor: pointer; border-radius: 0;
+  }
+  .tab-btn:hover { color: var(--text); border-color: transparent; }
+  .tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; }
+
+  /* Log-line cards */
+  .card { background: var(--panel); border: 1px solid var(--border); border-radius: 6px; margin-bottom: 8px; overflow: hidden; animation: rise .3s ease backwards; }
+  @keyframes rise { from{opacity:0;transform:translateY(5px)} to{opacity:1;transform:translateY(0)} }
+  .card-head { display: flex; align-items: center; gap: 14px; padding: 12px 16px; cursor: pointer; font-family: var(--mono); font-size: 13px; }
+  .card-head:hover { background: var(--panel-raised); }
+  .tag { font-size: 10px; padding: 2px 7px; border-radius: 3px; font-weight: 700; letter-spacing: .04em; min-width: 52px; text-align: center; }
+  .tag.HIGH { background: rgba(228,84,75,.15); color: var(--high); border: 1px solid rgba(228,84,75,.35); }
+  .tag.MEDIUM { background: rgba(232,184,78,.15); color: var(--medium); border: 1px solid rgba(232,184,78,.35); }
+  .tag.LOW { background: rgba(78,203,148,.15); color: var(--low); border: 1px solid rgba(78,203,148,.35); }
+  .pkg-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
+  .pkg-ver { color: var(--text-dim); font-size: 11px; white-space: nowrap; }
+  .score-bar { color: var(--text-dim); font-size: 11px; letter-spacing: -1px; }
+  .score-num { color: var(--text-muted); font-size: 11px; width: 30px; text-align: right; }
+  .chevron { color: var(--text-dim); font-size: 11px; transition: transform .2s; }
+  .card.open .chevron { transform: rotate(90deg); }
+  .card-body { max-height: 0; overflow: hidden; transition: max-height .25s ease; border-top: 1px solid transparent; }
+  .card.open .card-body { max-height: 600px; border-top: 1px solid var(--border); }
+  .card-body-inner { padding: 14px 16px 16px; }
+  .detail-label { font-family: var(--mono); font-size: 10px; text-transform: uppercase; letter-spacing: .08em; color: var(--text-dim); margin: 8px 0 4px; }
+  .detail-label:first-child { margin-top: 0; }
+  .signal-row { font-size: 12.5px; color: var(--text-muted); padding: 2px 0 2px 14px; position: relative; line-height: 1.5; }
+  .signal-row::before { content: '›'; position: absolute; left: 0; color: var(--text-dim); }
+  .explain-row { display: flex; gap: 10px; align-items: flex-start; margin-bottom: 10px; }
+  .explain-icon { font-size: 14px; width: 20px; flex-shrink: 0; text-align: center; padding-top: 1px; }
+  .explain-icon.changes { color: var(--text-muted); }
+  .explain-icon.breaks.HIGH { color: var(--high); }
+  .explain-icon.breaks.MEDIUM { color: var(--medium); }
+  .explain-icon.breaks.LOW { color: var(--low); }
+  .explain-text { font-size: 13.5px; line-height: 1.55; color: var(--text); }
+  .explain-label { font-family: var(--mono); font-size: 9.5px; text-transform: uppercase; letter-spacing: .06em; color: var(--text-dim); display: block; margin-bottom: 2px; }
+  .action-line { font-family: var(--mono); font-size: 12px; color: var(--accent); margin-top: 4px; padding: 8px 10px; background: rgba(233,84,32,.06); border: 1px solid rgba(233,84,32,.2); border-radius: 4px; }
+  .tech-toggle { font-family: var(--mono); font-size: 10.5px; color: var(--text-dim); cursor: pointer; margin-top: 12px; user-select: none; display: inline-block; }
+  .tech-toggle:hover { color: var(--text-muted); }
+  .tech-body { display: none; margin-top: 6px; padding-top: 8px; border-top: 1px dashed var(--border); }
+  .tech-body.open { display: block; }
+
+  .empty-state, .loading-state { border: 1px dashed var(--border); border-radius: 6px; padding: 40px 20px; text-align: center; color: var(--text-dim); font-family: var(--mono); font-size: 13px; }
+
+  /* Snapshot list */
+  .snap-row { display: flex; justify-content: space-between; align-items: center; background: var(--panel); border: 1px solid var(--border); border-radius: 6px; padding: 12px 16px; margin-bottom: 8px; }
+  .snap-id { font-family: var(--mono); font-size: 13px; }
+  .snap-reason { font-size: 11.5px; color: var(--text-dim); margin-top: 2px; }
+
+  /* Telemetry */
+  .telemetry-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 800px) { .telemetry-grid { grid-template-columns: 1fr; } }
+  .console-box {
+    background: #0A0D0F; border: 1px solid var(--border); border-radius: 6px; padding: 14px;
+    font-family: var(--mono); font-size: 11.5px; color: var(--low); max-height: 320px; overflow-y: auto; line-height: 1.7;
+  }
+  pre.json-box {
+    background: #0A0D0F; border: 1px solid var(--border); border-radius: 6px; padding: 14px;
+    font-family: var(--mono); font-size: 11.5px; color: var(--text-muted); max-height: 320px; overflow: auto; white-space: pre-wrap;
+  }
+
+  .toast {
+    position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%) translateY(15px);
+    background: var(--panel-raised); border: 1px solid var(--accent); color: var(--text); font-family: var(--mono);
+    font-size: 12.5px; padding: 11px 18px; border-radius: 6px; opacity: 0; pointer-events: none; transition: all .25s ease; z-index: 20;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  footer { text-align: center; font-family: var(--mono); font-size: 10.5px; color: var(--text-dim); margin-top: 32px; }
+</style>
+</head>
+<body>
+<div class="shell">
+
+  <div class="status-bar">
+    <div class="status-left">
+      <span class="brand"><span class="sq">▣</span> SENTINELUPDATE</span>
+      <span class="tagline">pre-update risk advisor</span>
+    </div>
+    <div class="status-right">
+      <span><span class="live-dot"></span><span id="clockDisplay">--:--:--</span></span>
+      <span><span class="k">kernel</span> <span id="kernelDisplay">loading…</span></span>
+      <span><span class="k">last scan</span> <span id="lastScanDisplay">never</span></span>
+      <span id="aiStatusBadge"><span class="k">ai</span> checking…</span>
+    </div>
+  </div>
+
+  <div class="controls">
+    <button class="primary" id="scanBtn">▸ scan updates</button>
+    <button id="snapshotBtn">◆ create snapshot</button>
+    <div class="toggle-row"><input type="checkbox" id="demoToggle" checked> demo dataset</div>
+    <div class="toggle-row"><input type="checkbox" id="deepToggle"> deep changelog analysis (slower)</div>
+    <div class="spacer"></div>
+    <select id="filterSelect">
+      <option value="all">all levels</option>
+      <option value="HIGH">high only</option>
+      <option value="MEDIUM">medium only</option>
+      <option value="LOW">low only</option>
+    </select>
+    <input type="text" id="searchInput" placeholder="filter package…">
+  </div>
+
+  <div class="stat-strip" id="statStrip" style="display:none;">
+    <div class="stat-cell"><div class="stat-label">Pending</div><div class="stat-value" id="statTotal">0</div></div>
+    <div class="stat-cell"><div class="stat-label">High risk</div><div class="stat-value hi" id="statHigh">0</div></div>
+    <div class="stat-cell"><div class="stat-label">Medium risk</div><div class="stat-value med" id="statMed">0</div></div>
+    <div class="stat-cell"><div class="stat-label">Low / safe</div><div class="stat-value lo" id="statLow">0</div></div>
+  </div>
+
+  <div class="tabs">
+    <button class="tab-btn active" data-tab="scanner">[ scanner ]</button>
+    <button class="tab-btn" data-tab="snapshots">[ snapshots ]</button>
+    <button class="tab-btn" data-tab="telemetry">[ telemetry ]</button>
+  </div>
+
+  <div class="tab-panel active" id="tab-scanner">
+    <div id="results"><div class="empty-state">no scan run yet — click "scan updates" to begin</div></div>
+  </div>
+
+  <div class="tab-panel" id="tab-snapshots">
+    <div id="snapshotList"><div class="empty-state">loading snapshots…</div></div>
+  </div>
+
+  <div class="tab-panel" id="tab-telemetry">
+    <div class="telemetry-grid">
+      <div>
+        <div class="detail-label" style="margin-top:0;">Kernel & hardware</div>
+        <pre class="json-box" id="sysContextBox">loading…</pre>
+      </div>
+      <div>
+        <div class="detail-label" style="margin-top:0;">Activity log</div>
+        <div class="console-box" id="activityLog"></div>
+      </div>
+    </div>
+  </div>
+
+  <footer>SentinelUpdate · rule-based risk engine + AI explanation & changelog analysis · nothing is auto-applied</footer>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const els = {
+  scanBtn: document.getElementById('scanBtn'),
+  snapshotBtn: document.getElementById('snapshotBtn'),
+  demoToggle: document.getElementById('demoToggle'),
+  deepToggle: document.getElementById('deepToggle'),
+  filterSelect: document.getElementById('filterSelect'),
+  searchInput: document.getElementById('searchInput'),
+  results: document.getElementById('results'),
+  statStrip: document.getElementById('statStrip'),
+  statTotal: document.getElementById('statTotal'),
+  statHigh: document.getElementById('statHigh'),
+  statMed: document.getElementById('statMed'),
+  statLow: document.getElementById('statLow'),
+  toast: document.getElementById('toast'),
+  clockDisplay: document.getElementById('clockDisplay'),
+  kernelDisplay: document.getElementById('kernelDisplay'),
+  lastScanDisplay: document.getElementById('lastScanDisplay'),
+  snapshotList: document.getElementById('snapshotList'),
+  sysContextBox: document.getElementById('sysContextBox'),
+  activityLog: document.getElementById('activityLog'),
+  aiStatusBadge: document.getElementById('aiStatusBadge'),
+};
+
+let lastResults = [];
+let activityLines = [];
+
+function nowStr() { return new Date().toLocaleTimeString('en-GB'); }
+setInterval(() => { els.clockDisplay.textContent = nowStr(); }, 1000);
+
+function logActivity(msg) {
+  activityLines.push(`[${nowStr()}] ${msg}`);
+  if (activityLines.length > 30) activityLines.shift();
+  els.activityLog.innerHTML = activityLines.join('<br>');
+  els.activityLog.scrollTop = els.activityLog.scrollHeight;
+}
+
+function showToast(msg) {
+  els.toast.textContent = msg;
+  els.toast.classList.add('show');
+  setTimeout(() => els.toast.classList.remove('show'), 3000);
+}
+
+function scoreBar(score) {
+  const filled = Math.round(score / 10);
+  return '▓'.repeat(filled) + '░'.repeat(10 - filled);
+}
+
+function renderResults() {
+  const filterVal = els.filterSelect.value;
+  const searchVal = els.searchInput.value.toLowerCase();
+
+  const filtered = lastResults.filter(u => {
+    if (filterVal !== 'all' && u.level !== filterVal) return false;
+    if (searchVal && !u.package.toLowerCase().includes(searchVal)) return false;
+    return true;
+  });
+
+  if (filtered.length === 0) {
+    els.results.innerHTML = '<div class="empty-state">no packages match current filter</div>';
+    return;
+  }
+
+  els.results.innerHTML = '';
+  filtered.forEach((u, i) => {
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.style.animationDelay = (i * 0.03) + 's';
+    if (u.level === 'HIGH') card.classList.add('open');
+
+    let semanticBlock = '';
+    if (u.semantic_analysis && u.semantic_analysis.citation) {
+      semanticBlock = `<div class="detail-label">Changelog citation</div>
+        <div class="signal-row" style="font-style:italic;">"${u.semantic_analysis.citation}"</div>`;
+    }
+
+    const uid = 'tech_' + i + '_' + Math.random().toString(36).slice(2, 7);
+
+    card.innerHTML = `
+      <div class="card-head">
+        <span class="tag ${u.level}">${u.level}</span>
+        <span class="pkg-name">${u.package}</span>
+        <span class="pkg-ver">${u.old_version || '?'} → ${u.new_version || '?'}</span>
+        <span class="score-bar">${scoreBar(u.score)}</span>
+        <span class="score-num">${u.score}</span>
+        <span class="chevron">▸</span>
+      </div>
+      <div class="card-body">
+        <div class="card-body-inner">
+          <div class="explain-row changes">
+            <span class="explain-icon changes">●</span>
+            <span class="explain-text"><span class="explain-label">What's changing</span>${u.what_changes}</span>
+          </div>
+          <div class="explain-row breaks">
+            <span class="explain-icon breaks ${u.level}">${u.level === 'HIGH' ? '▲' : u.level === 'MEDIUM' ? '◆' : '●'}</span>
+            <span class="explain-text"><span class="explain-label">What could break</span>${u.what_could_break}</span>
+          </div>
+          <div class="action-line">→ ${u.recommended_action}</div>
+
+          <span class="tech-toggle" onclick="document.getElementById('${uid}').classList.toggle('open'); this.textContent = this.textContent.startsWith('▸') ? this.textContent.replace('▸','▾') : this.textContent.replace('▾','▸');">▸ technical evidence (${u.signals.length} signal${u.signals.length === 1 ? '' : 's'})</span>
+          <div class="tech-body" id="${uid}">
+            ${u.signals.map(s => `<div class="signal-row">${s}</div>`).join('')}
+            ${semanticBlock}
+          </div>
+        </div>
+      </div>
+    `;
+    card.querySelector('.card-head').addEventListener('click', (e) => {
+      if (e.target.closest('.tech-toggle')) return;
+      card.classList.toggle('open');
+    });
+    els.results.appendChild(card);
+  });
+}
+
+async function runScan() {
+  els.scanBtn.disabled = true;
+  els.scanBtn.textContent = '▸ scanning...';
+  els.results.innerHTML = '<div class="loading-state">running scan + risk analysis…</div>';
+  logActivity('Scan started...');
+
+  const demo = els.demoToggle.checked;
+  const deep = els.deepToggle.checked;
+
+  try {
+    const res = await fetch(`/api/scan?demo=${demo}&deep=${deep}`);
+    const data = await res.json();
+    lastResults = data.updates;
+
+    els.statStrip.style.display = 'flex';
+    els.statTotal.textContent = data.summary.total;
+    els.statHigh.textContent = data.summary.high;
+    els.statMed.textContent = data.summary.medium;
+    els.statLow.textContent = data.summary.low;
+    els.lastScanDisplay.textContent = data.scanned_at;
+
+    renderResults();
+    logActivity(`Scan complete: ${data.summary.total} packages (${data.source})`);
+  } catch (e) {
+    els.results.innerHTML = '<div class="empty-state">scan failed: ' + e + '</div>';
+    logActivity('Scan failed: ' + e);
+  } finally {
+    els.scanBtn.disabled = false;
+    els.scanBtn.textContent = '▸ scan updates';
+  }
+}
+
+async function loadSystemContext() {
+  try {
+    const res = await fetch('/api/system');
+    const data = await res.json();
+    els.kernelDisplay.textContent = data.kernel || 'unknown';
+    els.sysContextBox.textContent = JSON.stringify(data, null, 2);
+  } catch (e) {
+    els.kernelDisplay.textContent = 'unavailable';
+  }
+}
+
+async function loadAiStatus() {
+  try {
+    const res = await fetch('/api/status');
+    const data = await res.json();
+    if (data.ai_available) {
+      els.aiStatusBadge.innerHTML = '<span class="k">ai</span> <span style="color:var(--low)">● gemini connected</span>';
+    } else {
+      els.aiStatusBadge.innerHTML = '<span class="k">ai</span> <span style="color:var(--medium)">● rule-based fallback (no API key)</span>';
+    }
+  } catch (e) {
+    els.aiStatusBadge.innerHTML = '<span class="k">ai</span> <span style="color:var(--high)">● status unknown</span>';
+  }
+}
+
+async function loadSnapshots() {
+  try {
+    const res = await fetch('/api/snapshots');
+    const snaps = await res.json();
+    if (!snaps || snaps.length === 0) {
+      els.snapshotList.innerHTML = '<div class="empty-state">no snapshots yet</div>';
+      return;
+    }
+    els.snapshotList.innerHTML = '';
+    snaps.forEach(s => {
+      const row = document.createElement('div');
+      row.className = 'snap-row';
+      row.innerHTML = `
+        <div><div class="snap-id">▣ ${s.snapshot_id}</div><div class="snap-reason">${s.reason || ''}</div></div>
+        <button data-id="${s.snapshot_id}" class="restoreBtn">restore (dry-run)</button>
+      `;
+      row.querySelector('.restoreBtn').addEventListener('click', async (e) => {
+        const id = e.target.getAttribute('data-id');
+        const res = await fetch('/api/restore', {
+          method: 'POST', headers: {'Content-Type':'application/json'},
+          body: JSON.stringify({snapshot_id: id, execute: false})
+        });
+        const result = await res.json();
+        showToast(result.message);
+        logActivity(`Dry-run restore plan generated for ${id}`);
+      });
+      els.snapshotList.appendChild(row);
+    });
+  } catch (e) {
+    els.snapshotList.innerHTML = '<div class="empty-state">failed to load snapshots</div>';
+  }
+}
+
+els.scanBtn.addEventListener('click', runScan);
+els.filterSelect.addEventListener('change', renderResults);
+els.searchInput.addEventListener('input', renderResults);
+
+els.snapshotBtn.addEventListener('click', async () => {
+  els.snapshotBtn.disabled = true;
+  try {
+    const res = await fetch('/api/snapshot', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({reason: 'manual snapshot from dashboard'})
+    });
+    const data = await res.json();
+    showToast('Snapshot created: ' + data.snapshot_id);
+    logActivity(`Snapshot created: ${data.snapshot_id}`);
+    if (document.getElementById('tab-snapshots').classList.contains('active')) loadSnapshots();
+  } catch (e) {
+    showToast('Snapshot failed');
+  } finally {
+    els.snapshotBtn.disabled = false;
+  }
+});
+
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+    if (btn.dataset.tab === 'snapshots') loadSnapshots();
+  });
+});
+
+// Init
+logActivity('SentinelUpdate initialized.');
+loadSystemContext();
+loadSnapshots();
+</script>
+</body>
+</html>

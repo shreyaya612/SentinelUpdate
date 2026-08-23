@@ -1,0 +1,19 @@
+# Environment & Secrets
+.env
+
+# Backups & Snapshots
+snapshots/
+
+# Python caches & virtual environments
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+venv/
+.venv/
+env/
+
+# IDEs
+.vscode/
+.idea/
+
