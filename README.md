@@ -53,8 +53,11 @@ git clone https://github.com/shreyaya612/SentinelUpdate.git
 cd SentinelUpdate
 pip install -r requirements.txt
 
-# create a .env file with your Gemini key (free at https://aistudio.google.com/apikey)
-echo "GEMINI_API_KEY=your-key-here" > .env
+### Configure Gemini API
+Create a `.env` file in the project root and add your Gemini API key.
+Get your API key from [Google AI Studio](https://aistudio.google.com/apikey).
+```env
+GEMINI_API_KEY=your-key-here
 
 # Web dashboard
 python ui/app.py
