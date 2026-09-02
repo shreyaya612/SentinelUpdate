@@ -66,6 +66,66 @@ python ui/app.py
 # or CLI
 python main.py scan --demo
 ```
+## Quick start (Ubuntu / WSL2)
+
+> **Windows users:** this project depends on `apt`/`dpkg`, which don't exist
+> natively on Windows. Run it inside **WSL2 with Ubuntu**, not native
+> PowerShell/CMD.
+>
+> Install WSL2 if you haven't: `wsl --install -d Ubuntu` (from PowerShell)
+
+**1. Get the project into your Linux home directory — not `/mnt/c/...`**
+
+Running Python venvs directly on the Windows-mounted filesystem
+(`/mnt/c/Users/...`) causes permission/performance issues (`ensurepip`
+failures, missing `venv/bin/activate`). Keep a working copy inside WSL's own
+filesystem instead:
+
+```bash
+cd ~
+cp -r /mnt/c/Users/<you>/Desktop/SentinelUpdate ~/SentinelUpdate
+cd ~/SentinelUpdate
+```
+
+**2. Install Python tooling (first time only)**
+
+```bash
+sudo apt update
+sudo apt install python3-pip python3-venv -y
+```
+
+**3. Create and activate a virtual environment**
+
+```bash
+python3 -m venv venv
+source venv/bin/activate
+```
+
+Your prompt should now show `(venv)` at the start. If `python3 -m venv venv`
+fails with an `ensurepip` error, it's almost always because you're still on
+`/mnt/c/...` — go back to step 1.
+
+**4. Install dependencies and configure your API key**
+
+```bash
+python -m pip install -r requirements.txt
+echo "GEMINI_API_KEY=your-key-here" > .env
+```
+
+**5. Run it**
+
+```bash
+python ui/app.py
+# open http://localhost:5050 in your browser
+```
+
+Every time you come back to work on this later:
+
+```bash
+cd ~/SentinelUpdate
+source venv/bin/activate
+python ui/app.py
+```
 
 No API key? The tool still runs fully — it just uses rule-based
 explanations instead of AI-generated ones (shown clearly in the UI's AI
