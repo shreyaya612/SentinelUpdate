@@ -15,6 +15,11 @@ from ai_layer.changelog_analyzer import enrich_with_changelog_analysis
 from rollback.snapshot import create_snapshot, list_snapshots, restore_snapshot
 
 app = Flask(__name__)
+@app.errorhandler(Exception)
+def handle_any_error(e):
+    import traceback
+    traceback.print_exc()
+    return jsonify({"error": str(e), "error_type": type(e).__name__}), 500
 
 DEMO_UPDATES = [
     {"package": "linux-image-6.8.0-49-generic", "old_version": "6.8.0-48.48", "new_version": "6.8.0-49.49"},
@@ -54,7 +59,7 @@ def api_scan():
     scored.sort(key=lambda r: r["score"], reverse=True)
 
     if deep_analysis:
-        scored = enrich_with_changelog_analysis(scored, max_packages=5)
+        scored = enrich_with_changelog_analysis(scored, max_packages=3)
 
     results = explain_all(scored)
     order = {"HIGH": 0, "MEDIUM": 1, "LOW": 2}
